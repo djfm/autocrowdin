@@ -1,0 +1,3 @@
+[submodule "vendor/phantomshop"]
+	path = vendor/phantomshop
+	url = https://github.com/djfm/phantomshop

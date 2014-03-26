@@ -1,0 +1,22 @@
+{
+  "name": "autocrowdin",
+  "version": "0.0.0",
+  "description": "ERROR: No README.md file found!",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": "",
+  "author": "djfm",
+  "license": "BSD",
+  "dependencies": {
+    "promised-io": "~0.3.4",
+    "minimist": "0.0.8",
+    "system": "~0.1.0",
+    "ncp": "~0.5.0",
+    "fs.extra": "~1.2.1",
+    "sequence": "~3.0.0",
+    "portfinder": "~0.2.1",
+    "mysql": "~2.1.1"
+  }
+}
