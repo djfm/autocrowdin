@@ -12,6 +12,8 @@
 	var spawn       = require('child_process').spawn;
 	var mysql       = require('mysql');
 	var git         = require('./vendor/phantomshop/lib/git.js');
+	var ghosts      = require('./vendor/phantomshop/lib/ghosts.js');
+	var components  = require('./vendor/phantomshop/ghosts/tools/components.js');
 
 	var config      = require('./config.js');
 
@@ -27,6 +29,7 @@
 	}
 
 	var shopRoot = null;
+	var backOfficeURL = null;
 
 	var copyFiles = function () {
 		var d = new Deferred();
@@ -90,7 +93,9 @@
 		var d = new Deferred();
 		console.log('Starting server on localhost:' + params.port + ' in ' + params.path);
 		var args = ['-S', 'localhost:' + params.port, '-t', params.path];
-		serverProcess = spawn('php', args);
+		serverProcess = spawn('php', args, {stdio: 'ignore'});
+
+		backOfficeURL = 'http://localhost:' + params.port + '/admin-dev/index.php';
 
 		setTimeout(function () {
 			d.resolve('http://localhost:' + params.port + '/install-dev/index.php');
@@ -166,7 +171,9 @@
 			'--tablesPrefix', prefixify(argv.version),
 			'--mysqlUser', config.mysqlUser,
 			'--mysqPassword', config.mysqPassword,
-			'--mysqlDatabase', config.mysqlDatabase
+			'--mysqlDatabase', config.mysqlDatabase,
+			'--email', 'pub@prestashop.com',
+			'--password', '123456789'
 		];
 
 		
@@ -193,10 +200,40 @@
 		return d.promise;
 	};
 
-	var willCloneModule = function(moduleName, repo, branch) {
+	var willCloneModule = function (moduleName, repo, branch) {
 		return function () {
 			console.log(shopRoot, moduleName, repo, branch);
 			return git.clone(path.join(shopRoot, 'modules', moduleName), repo, branch);
+		};
+	};
+
+	var willInstallModule = function (name) {
+		return function () {
+			var d = new Deferred();
+
+			var installerScript = path.join(__dirname, 'vendor', 'phantomshop', 'ghosts', 'install_module.js');
+
+			var args = [installerScript,
+				'--url', backOfficeURL,
+				//'--screenshots', path.join(__dirname, 'screenshots'),
+				'--module', name
+			];
+
+			console.log('running: phantomjs ' + args.join(' '));
+
+			var child = spawn('phantomjs', args, {stdio: 'inherit'});
+			child.on('exit', function (code) {
+				if (code === 0)
+				{
+					d.resolve();
+				}
+				else
+				{
+					d.reject('Could not install module: ' + name);
+				}
+			});
+
+			return d.promise;
 		};
 	};
 
@@ -214,8 +251,19 @@
 		startTheServer,
 		cleanTheDatabase,
 		installTheShop,
+		willCloneModule('emailgenerator', 'https://github.com/djfm/emailgenerator', 'master'),
 		willCloneModule('translatools', 'https://github.com/djfm/translatools', 'development'),
-		willCloneModule('emailgenerator', 'https://github.com/djfm/emailgenerator', 'master')
+		components.glue.willDelay(5000), // dunno why, but if we don't wait the server hangs
+		willInstallModule('emailgenerator'),
+		willInstallModule('translatools'),
+		components.glue.willDelay(10000), // let crowdin rest, don't make him think we're attacking
+		function () {
+			return ghosts.run(__dirname + '/ghosts/crowdin_agd.js', {
+				url: backOfficeURL,
+				shopRoot: shopRoot,
+				screenshots: __dirname + '/screenshots'
+			});
+		}
 	]).then(function (params) {
 		console.log(params);
 		console.log('Success!?');
