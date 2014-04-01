@@ -16,8 +16,39 @@
 	var ghosts      = require('./vendor/phantomshop/lib/ghosts.js');
 	var components  = require('./vendor/phantomshop/ghosts/tools/components.js');
 	var decompress  = require('decompress');
+	var nodemailer  = require('nodemailer');
 
 	var config      = require('./config.js');
+
+	/*
+	var smtpTransport = nodemailer.createTransport('SMTP', {
+		service: 'Gmail',
+		auth: {
+			user: config.gmailUser,
+			pass: config.gmailPassword
+		}
+	});
+
+	var sendMail = function (error)
+	{
+		var mailOptions = {
+			from: 'FMDJ <fmdj@prestashop.com>',
+			to: 'fmdj@prestashop.com, translation@prestashop.com',
+			subject: error ? 'Packs generation failed for ' + argv.version : 'Published packs for ' + argv.version,
+			text: error ? 
+			html: "<b>Hello world ✔</b>" // html body
+		};
+
+		smtpTransport.sendMail(mailOptions, function(error, response){
+			if(error){
+			    console.log(error);
+			}else{
+			    console.log("Message sent: " + response.message);
+			}
+
+			process.exit(0);
+		});
+	};*/
 
 	if (!argv.version)
 	{
@@ -370,9 +401,11 @@
 		publishThePacks
 	]).then(function (params) {
 		console.log('Success!? -- packs generated and published for: ' + argv.version);
+		sendMail();
 		quit(0);
 	}, function (error) {
 		console.log('Something bad happened: ' + error);
+		sendMail(error);
 		quit(1);
 	});
 
