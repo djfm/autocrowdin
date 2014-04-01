@@ -1,5 +1,6 @@
 vendor
 versions
+packs
 node_modules
 screenshots
 config.js

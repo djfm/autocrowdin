@@ -6,6 +6,7 @@ var	argv		= require('minimist')(system.args);
 var page		= require('webpage').create();
 var seq			= require('promised-io/promise').seq;
 var Deferred	= require('promised-io/promise').Deferred;
+var path        = require('path');
 
 var components = require('../vendor/phantomshop/ghosts/tools/components.js');
 var I = components.actions;
@@ -20,6 +21,12 @@ if (!argv.url)
 if (!argv.shopRoot)
 {
 	console.log('Please provide the shop root! (--shopRoot some_filesystem_path)');
+	phantom.exit(components.errors.INVALID_URL);
+}
+
+if (!argv.movePacksTo || !fs.exists(path.dirname(argv.movePacksTo)))
+{
+	console.log('Please provide the directory to move the  packs to and make sure it exists! (--movePacksTo some_directory)');
 	phantom.exit(components.errors.INVALID_URL);
 }
 
@@ -164,6 +171,7 @@ var willBuildThePacks = function ()
 			console.log('Got the file, waiting a bit to be sure it\'s complete...');
 			setTimeout(function () {
 				console.log('You\'ve got packs: ' + packsPath);
+				fs.copy(packsPath, argv.movePacksTo);
 				d.resolve(packsPath);
 			}, 15000);
 		}

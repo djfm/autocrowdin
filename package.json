@@ -15,8 +15,12 @@
     "system": "~0.1.0",
     "ncp": "~0.5.0",
     "fs.extra": "~1.2.1",
-    "sequence": "~3.0.0",
+    "sequence": "~2.1.x",
     "portfinder": "~0.2.1",
-    "mysql": "~2.1.1"
+    "mysql": "~2.1.1",
+    "path": "~0.4.9",
+    "decompress": "~0.1.8",
+    "request": "~2.34.0",
+    "qs": "~0.6.6"
   }
 }

@@ -10,10 +10,12 @@
 	var path        = require('path');
 	var portfinder  = require('portfinder');
 	var spawn       = require('child_process').spawn;
+	var exec        = require('child_process').exec;
 	var mysql       = require('mysql');
 	var git         = require('./vendor/phantomshop/lib/git.js');
 	var ghosts      = require('./vendor/phantomshop/lib/ghosts.js');
 	var components  = require('./vendor/phantomshop/ghosts/tools/components.js');
+	var decompress  = require('decompress');
 
 	var config      = require('./config.js');
 
@@ -30,6 +32,16 @@
 
 	var shopRoot = null;
 	var backOfficeURL = null;
+	var installerURL = null;
+
+	var movePacksToDir = path.join(__dirname, 'packs', argv.version);
+	var movePacksTo = path.join(movePacksToDir, 'all_packs.tar.gz');
+
+	if (fs.existsSync(movePacksToDir))
+	{
+		fs.rmrfSync(movePacksToDir);
+		fs.mkdirSync(movePacksToDir);
+	}
 
 	var copyFiles = function () {
 		var d = new Deferred();
@@ -93,12 +105,14 @@
 		var d = new Deferred();
 		console.log('Starting server on localhost:' + params.port + ' in ' + params.path);
 		var args = ['-S', 'localhost:' + params.port, '-t', params.path];
-		serverProcess = spawn('php', args, {stdio: 'ignore'});
+
+		serverProcess = spawn(config.phpExecutable || 'php', args, {stdio: 'ignore'});
 
 		backOfficeURL = 'http://localhost:' + params.port + '/admin-dev/index.php';
+		installerURL = 'http://localhost:' + params.port + '/install-dev/index.php';
 
 		setTimeout(function () {
-			d.resolve('http://localhost:' + params.port + '/install-dev/index.php');
+			d.resolve();
 		}, 2000);
 
 		return d.promise;
@@ -160,13 +174,13 @@
 		return d.promise;
 	};
 
-	var installTheShop = function (url) {
+	var installTheShop = function () {
 		var d = new Deferred();
 
 		var installerScript = path.join(__dirname, 'vendor', 'phantomshop', 'ghosts', 'install.js');
 
 		var args = [installerScript,
-			'--url', url,
+			'--url', installerURL,
 			'--screenshots', path.join(__dirname, 'screenshots'),
 			'--tablesPrefix', prefixify(argv.version),
 			'--mysqlUser', config.mysqlUser,
@@ -189,7 +203,7 @@
 		child.on('exit', function (code) {
 			if (code === 0)
 			{
-				d.resolve(url.replace('/install-dev/', '/admin-dev/'));
+				d.resolve(backOfficeURL);
 			}
 			else
 			{
@@ -237,6 +251,46 @@
 		};
 	};
 
+	var extractThePacks = function ()
+	{
+		var d = new Deferred();
+
+		var src = fs.createReadStream(movePacksTo);
+		var dest = decompress({ext: '.tar.gz', path: movePacksToDir});
+		
+		dest.on('end', function () {
+			fs.unlinkSync(movePacksTo);
+			d.resolve();
+		});
+		
+		dest.on('error', function () {
+			d.reject('Could not extract: ' + movePacksTo);
+		});
+
+		src.pipe(dest);
+
+		return d.promise;
+	};
+
+	var testThePacks = function () {
+		console.log('Will now test the packs...');
+		var d = new Deferred();
+
+		exec('nodejs install_translation_packs --packsDir ' + path.join('packs', argv.version) + ' --url ' + backOfficeURL, function (error, stdout) {
+			if (error)
+			{
+				console.log(stdout);
+				d.reject('Could not install one of the packs :/');
+			}
+			else
+			{
+				d.resolve();
+			}
+		});
+
+		return d.promise;
+	};
+
 	var quit = function (code) {
 		if (serverProcess)
 		{
@@ -261,9 +315,16 @@
 			return ghosts.run(__dirname + '/ghosts/crowdin_agd.js', {
 				url: backOfficeURL,
 				shopRoot: shopRoot,
-				screenshots: __dirname + '/screenshots'
+				screenshots: __dirname + '/screenshots',
+				movePacksTo: movePacksTo
 			});
-		}
+		},
+		extractThePacks,
+		copyFiles,
+		prepareTheShop,
+		cleanTheDatabase,
+		installTheShop,
+		testThePacks
 	]).then(function (params) {
 		console.log(params);
 		console.log('Success!?');
