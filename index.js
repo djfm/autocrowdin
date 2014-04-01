@@ -291,6 +291,46 @@
 		return d.promise;
 	};
 
+	var publishThePacks = function () {
+		console.log('Will now publish the packs...');
+
+		var packsDir = path.join('packs', argv.version);
+
+		var promises = fs.readdirSync(packsDir).map(function (entry) {
+			if (/\.gzip$/.exec(entry))
+			{
+				var packPath = path.join(packsDir, entry);
+
+				console.log('Preparing to publish pack: ' + packPath);
+
+				return function () {
+					var d = new Deferred();
+					var cmd = 'publish_pack.rb ' + packPath + ' ' + argv.version;
+
+					console.log('Running: ' + cmd);
+
+					exec(cmd, function (error, stdout) {
+						console.log(stdout);
+						if (error)
+						{
+							d.reject(error);
+						}
+						else
+						{
+							d.resolve();
+						}
+					});
+
+					return d.promise;
+				};
+			}
+		});
+
+		console.log('CROSS YOUR FINGERS, BRACE FOR IMPACT');
+
+		return seq(promises);
+	};
+
 	var quit = function (code) {
 		if (serverProcess)
 		{
@@ -326,10 +366,10 @@
 		prepareTheShop,
 		cleanTheDatabase,
 		installTheShop,
-		testThePacks
+		testThePacks,
+		publishThePacks
 	]).then(function (params) {
-		console.log(params);
-		console.log('Success!?');
+		console.log('Success!? -- packs generated and published for: ' + argv.version);
 		quit(0);
 	}, function (error) {
 		console.log('Something bad happened: ' + error);
