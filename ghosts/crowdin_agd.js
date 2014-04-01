@@ -7,6 +7,7 @@ var page		= require('webpage').create();
 var seq			= require('promised-io/promise').seq;
 var Deferred	= require('promised-io/promise').Deferred;
 var path        = require('path');
+var spawn       = require('child_process').spawn;
 
 var components = require('../vendor/phantomshop/ghosts/tools/components.js');
 var I = components.actions;
@@ -96,6 +97,35 @@ var willInstallMissingModules = function () {
 			}, d.reject);
 		}, d.reject);
 	}
+
+	return d.promise;
+};
+
+var willRegenerateTheTranslations = function () {
+	var d = new Deferred();
+
+	console.log('Regenerating translations, if possible. May take a long time...');
+	var url = 'http://api.crowdin.net/api/project/' + argv.projectIdentifier + '/export?key=' + argv.crowdinAPIKey + '&json';
+	console.log('Making the request to: ' + url);
+
+	spawn('nodejs', ['regenerate_translations.js', '--url', url]).on('exit', function (code) {
+		if (code === 0 || code === 1)
+		{
+			if (code === 0)
+			{
+				console.log('Packs were built!');
+			}
+			else
+			{
+				console.log('Skipped packs building, already done too recently.');
+			}
+			d.resolve();
+		}
+		else
+		{
+			d.reject('Could not regenerate translations.');
+		}
+	});
 
 	return d.promise;
 };
@@ -241,6 +271,7 @@ page.open(argv.url, function () {
 					U.willWaitFor(page, '#translatability'),
 					willForceLiveTranslationMaybe,
 					willInstallMissingModules,
+					willRegenerateTheTranslations,
 					willDownloadTranslations
 				]).then(d.resolve, d.reject);
 			}

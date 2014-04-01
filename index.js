@@ -316,7 +316,9 @@
 				url: backOfficeURL,
 				shopRoot: shopRoot,
 				screenshots: __dirname + '/screenshots',
-				movePacksTo: movePacksTo
+				movePacksTo: movePacksTo,
+				projectIdentifier: config.projectIdentifier,
+				crowdinAPIKey: config.crowdinAPIKey
 			});
 		},
 		extractThePacks,
