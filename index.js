@@ -100,15 +100,15 @@
 						}
 						else
 						{
-							d.reject('Could not run git submodule foreach git pull.')
+							d.reject('Could not run git submodule foreach git pull.');
 						}
 					});
 				}
 				else
 				{
-					d.reject('Could not run git pull.')
+					d.reject('Could not run git pull.');
 				}
-			})
+			});
 		}
 
 		return d.promise;
