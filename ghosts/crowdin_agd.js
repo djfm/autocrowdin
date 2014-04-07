@@ -61,6 +61,60 @@ var willForceLiveTranslationMaybe = function () {
 	return d.promise;
 };
 
+var willSetApiSettings = function () {
+	console.log('Setting API settings...');
+	var d = new Deferred();
+	page.evaluate(function (projectIdentifier, crowdinAPIKey, crowdinVersion) {
+		$('#CROWDIN_PROJECT_IDENTIFIER').val(projectIdentifier);
+		$('#CROWDIN_PROJECT_API_KEY').val(crowdinAPIKey);
+		$('#CROWDIN_FORCED_VERSION').val(crowdinVersion);
+		$('#save-settings').click();
+	}, argv.projectIdentifier, argv.crowdinAPIKey, argv.crowdinVersion);
+
+	U.waitForURLParameter(page, 'api_settings_updated').then(function () {
+		var version = page.evaluate(function () {
+			return $('#check_pack_version').attr('data-pack-version');
+		});
+
+		if (version === argv.crowdinVersion)
+		{
+			console.log('Api settings successfully set, crowdin version is: ' + version);
+			d.resolve();
+		}
+		else
+		{
+			d.reject('Could not check that the crowdin version was correctly set.');
+		}
+	}, d.reject);
+
+	return d.promise;
+};
+
+var willExportSourcesToCrowdin = function () {
+	var d = new Deferred();
+
+	console.log('Exporting sources to Crowdin...');
+
+	page.evaluate(function () {
+		exportSourcesToCrowdin(true);
+	});
+
+	/*
+	var n = 0;
+	var interval = setInterval(function () {
+		console.log('Taking screenshot ' + n);
+		I.takeScreenshot(page, argv.screenshots, 'exporting_sources_' + n);
+		n++;
+	}, 2000);*/
+
+	U.waitFor(page, '#sources-successfully-exported', 'any', 1000, 1000, 3600000).then(function () {
+		console.log('Exported sources!! :)');
+		d.resolve();
+	}, d.reject);
+
+	return d.promise;
+}
+
 var willInstallMissingModules = function () {
 	var d = new Deferred();
 
@@ -173,7 +227,7 @@ var willGenerateEmails = function () {
 		generateEmails();
 	});
 
-	U.waitFor(page, '#feedback.success', 1000, 2000, 600000).then(function () {
+	U.waitFor(page, '#feedback.success', 'any', 1000, 2000, 1800000).then(function () {
 		I.takeScreenshot(page, argv.screenshots, 'emails_generated');
 		d.resolve();
 	}, d.reject);
@@ -269,8 +323,10 @@ page.open(argv.url, function () {
 				}, href);
 				seq([
 					U.willWaitFor(page, '#translatability'),
+					willSetApiSettings,
 					willForceLiveTranslationMaybe,
 					willInstallMissingModules,
+					willExportSourcesToCrowdin,
 					willRegenerateTheTranslations,
 					willDownloadTranslations
 				]).then(d.resolve, d.reject);

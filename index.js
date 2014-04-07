@@ -20,7 +20,14 @@
 
 	var config      = require('./config.js');
 
-	/*
+	var sourceFolder = path.join(__dirname, 'versions', argv.version);
+	var crowdinVersionSpecifier = path.join(sourceFolder, '.crowdin_version');
+
+	if (!argv.crowdinVersion && fs.existsSync(crowdinVersionSpecifier))
+	{
+		argv.crowdinVersion = fs.readFileSync(crowdinVersionSpecifier, {encoding: 'UTF-8'}).trim();
+	}
+	
 	var smtpTransport = nodemailer.createTransport('SMTP', {
 		service: 'Gmail',
 		auth: {
@@ -29,26 +36,29 @@
 		}
 	});
 
-	var sendMail = function (error)
+	var sendMail = function (error, then)
 	{
+		var text = error ? error : 'Seems it went fine!';
+		var subject = error ? 'Language packs publication failed for ' + argv.version : '(Successfully?) Published language packs for ' + argv.version;
+
 		var mailOptions = {
 			from: 'FMDJ <fmdj@prestashop.com>',
 			to: 'fmdj@prestashop.com, translation@prestashop.com',
-			subject: error ? 'Packs generation failed for ' + argv.version : 'Published packs for ' + argv.version,
-			text: error ? 
-			html: "<b>Hello world ✔</b>" // html body
+			subject: subject,
+			text: text,
+			html: text
 		};
 
 		smtpTransport.sendMail(mailOptions, function(error, response){
 			if(error){
-			    console.log(error);
+				console.log(error);
+				then();
 			}else{
-			    console.log("Message sent: " + response.message);
+				console.log("Email sent: " + response.message);
+				then();
 			}
-
-			process.exit(0);
 		});
-	};*/
+	};
 
 	if (!argv.version)
 	{
@@ -73,6 +83,36 @@
 		fs.rmrfSync(movePacksToDir);
 		fs.mkdirSync(movePacksToDir);
 	}
+
+	var updateGitIfNeeded = function () {
+		var d = new Deferred();
+
+		if (fs.existsSync(path.join(sourceFolder, '.git')))
+		{
+			spawn('git', ['pull'], {cwd: sourceFolder, stdio: 'ignore'}).on('exit', function (code) {
+				if (code === 0)
+				{
+					spawn('git', ['submodule', 'foreach', 'git', 'pull'], {cwd: sourceFolder, stdio: 'ignore'}).on('exit', function (code) {
+						if (code === 0)
+						{
+							console.log('Pulled main repo and submodules in: ' + sourceFolder);
+							d.resolve();
+						}
+						else
+						{
+							d.reject('Could not run git submodule foreach git pull.')
+						}
+					});
+				}
+				else
+				{
+					d.reject('Could not run git pull.')
+				}
+			})
+		}
+
+		return d.promise;
+	};
 
 	var copyFiles = function () {
 		var d = new Deferred();
@@ -282,6 +322,19 @@
 		};
 	};
 
+	var makeThePacks = function ()
+	{
+		return ghosts.run(__dirname + '/ghosts/crowdin_agd.js', {
+			url: backOfficeURL,
+			shopRoot: shopRoot,
+			screenshots: __dirname + '/screenshots',
+			movePacksTo: movePacksTo,
+			projectIdentifier: config.projectIdentifier,
+			crowdinAPIKey: config.crowdinAPIKey,
+			crowdinVersion: argv.crowdinVersion || argv.version
+		});
+	};
+
 	var extractThePacks = function ()
 	{
 		var d = new Deferred();
@@ -371,6 +424,7 @@
 	};
 
 	seq([
+		updateGitIfNeeded,
 		copyFiles,
 		prepareTheShop,
 		startTheServer,
@@ -381,17 +435,8 @@
 		components.glue.willDelay(5000), // dunno why, but if we don't wait the server hangs
 		willInstallModule('emailgenerator'),
 		willInstallModule('translatools'),
-		components.glue.willDelay(10000), // let crowdin rest, don't make him think we're attacking
-		function () {
-			return ghosts.run(__dirname + '/ghosts/crowdin_agd.js', {
-				url: backOfficeURL,
-				shopRoot: shopRoot,
-				screenshots: __dirname + '/screenshots',
-				movePacksTo: movePacksTo,
-				projectIdentifier: config.projectIdentifier,
-				crowdinAPIKey: config.crowdinAPIKey
-			});
-		},
+		components.glue.willDelay(10000), // let crowdin rest, don't make him think we're attacking,
+		makeThePacks,
 		extractThePacks,
 		copyFiles,
 		prepareTheShop,
@@ -401,12 +446,14 @@
 		publishThePacks
 	]).then(function (params) {
 		console.log('Success!? -- packs generated and published for: ' + argv.version);
-		sendMail();
-		quit(0);
+		sendMail(null, function () {
+			quit(0);
+		});
 	}, function (error) {
 		console.log('Something bad happened: ' + error);
-		sendMail(error);
-		quit(1);
+		sendMail(error, function () {
+			quit(1);
+		});
 	});
 
 })();
