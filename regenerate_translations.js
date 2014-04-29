@@ -8,6 +8,8 @@ if (!argv.url)
 	process.exit(42);
 }
 
+console.log('Regenerating...');
+
 request(argv.url, function (error, response, body) {
 	if (error)
 	{
@@ -16,7 +18,14 @@ request(argv.url, function (error, response, body) {
 	}
 	else
 	{
-		body = JSON.parse(body);
+		console.log(body);
+		try {
+			body = JSON.parse(body);
+		}
+		catch (err)
+		{
+			body = {success: {status: 'responseWasNotJson'}};
+		}
 
 		if (body.success)
 		{

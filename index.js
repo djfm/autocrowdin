@@ -43,7 +43,7 @@
 
 		var mailOptions = {
 			from: 'FMDJ <fmdj@prestashop.com>',
-			to: 'fmdj@prestashop.com, translation@prestashop.com',
+			to: 'translation@prestashop.com, david.benoit@prestashop.com',
 			subject: subject,
 			text: text,
 			html: text
@@ -109,6 +109,11 @@
 					d.reject('Could not run git pull.');
 				}
 			});
+		}
+		else
+		{
+			console.log('Not updating: not a git version.');
+			d.resolve();
 		}
 
 		return d.promise;
@@ -322,6 +327,13 @@
 		};
 	};
 
+	var updateAllModules = function ()
+	{
+		return ghosts.run(__dirname + '/vendor/phantomshop/ghosts/update_all_modules.js', {
+			url: backOfficeURL
+		});
+	};
+
 	var makeThePacks = function ()
 	{
 		return ghosts.run(__dirname + '/ghosts/crowdin_agd.js', {
@@ -389,7 +401,7 @@
 
 				return function () {
 					var d = new Deferred();
-					var cmd = 'publish_pack.rb ' + packPath + ' ' + argv.version;
+					var cmd = '/home/fram/bin/publish_pack.rb ' + packPath + ' ' + argv.version;
 
 					console.log('Running: ' + cmd);
 
@@ -435,6 +447,7 @@
 		components.glue.willDelay(5000), // dunno why, but if we don't wait the server hangs
 		willInstallModule('emailgenerator'),
 		willInstallModule('translatools'),
+		updateAllModules,
 		components.glue.willDelay(10000), // let crowdin rest, don't make him think we're attacking,
 		makeThePacks,
 		extractThePacks,

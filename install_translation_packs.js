@@ -33,7 +33,10 @@ var promises = fs.readdirSync(argv.packsDir).map(function (entry) {
 				if (error)
 				{
 					console.log(stdout);
-					d.reject('Could not upload pack: ' + packPath);
+					fs.unlinkSync(packPath);
+					console.log('Could not upload pack: ' + packPath);
+					console.log('Deleted!');
+					d.resolve();
 				}
 				else
 				{
